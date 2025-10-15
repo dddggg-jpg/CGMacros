@@ -86,28 +86,40 @@
     }
 
     function showSummary(id) {
-      const bio = biosData.find(b => b.subject == id);
-      if (!bio) return;
+  const bio = biosData.find(b => b.subject == id);
+  if (!bio) return;
 
-      const category = bio["A1c PDL (Lab)"] >= 6.5 ? "type 2 diabetes" :
-                       bio["A1c PDL (Lab)"] >= 5.7 ? "prediabetes" : "no diabetes";
+  const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 diabetes" :
+                   bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "No diabetes";
 
-      const summary = `
-        <strong>Participant ${String(bio.subject).padStart(3,'0')}:</strong><br>
-        ${bio.Gender === 'M' ? 'Mr.' : 'Ms.'} is a ${bio.Age}-year-old ${bio["Self-identify"]} ${bio.Gender === 'M' ? 'male' : 'female'}
-        with an A1c of ${bio["A1c PDL (Lab)"]}% (${category}) and a body mass index of ${bio.BMI.toFixed(1)}.
-        As part of the screening process, laboratory evaluation revealed fasting glucose of ${bio["Fasting GLU - PDL (Lab)"]} mg/dL,
-        insulin level of ${bio.Insulin} µIU/mL, triglycerides of ${bio.Triglycerides} mg/dL,
-        total cholesterol of ${bio.Cholesterol} mg/dL, HDL ${bio.HDL} mg/dL, and LDL ${bio["LDL (Cal)"]} mg/dL.
-        <br><br><a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3,'0')}">View CGM Data for this participant</a>.
-      `;
+  const summary = `
+    <strong>Participant ${String(bio.subject).padStart(3, '0')}</strong> is a ${bio.Age} y.o. ${bio["Self-identify "]} ${bio.Gender === 'M' ? 'male' : 'female'} 
+    with an A1c of ${bio["A1c PDL (Lab)"]}% (${category}) and a BMI of ${bio.BMI.toFixed(1)}.
+    <br><br>
+    <strong>Measurements</strong><br>
+    Height: ${bio["Height "]} in<br>
+    Weight: ${bio["Body weight "]} lbs<br>
+    BMI: ${bio.BMI.toFixed(1)}<br><br>
 
-      const div = document.getElementById("summaryContainer");
-      div.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
-      const summaryDiv = document.getElementById(`summary-${id}`);
-      summaryDiv.style.display = 'block';
-      window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
-    }
+    <strong>Blood Analytics</strong><br>
+    HbA1c: ${bio["A1c PDL (Lab)"]}%<br>
+    Fasting Glucose: ${bio["Fasting GLU - PDL (Lab)"]} mg/dL<br>
+    Fasting Insulin: ${bio.Insulin} µIU/mL<br>
+    Cholesterol, Total: ${bio.Cholesterol} mg/dL<br>
+    Triglycerides: ${bio.Triglycerides} mg/dL<br>
+    HDL: ${bio.HDL} mg/dL<br>
+    LDL (Calculated): ${bio["LDL (Cal)"]} mg/dL
+    <br><br>
+    <a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3, '0')}">View CGM Data for this participant</a>.
+  `;
+
+  const div = document.getElementById("summaryContainer");
+  div.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
+  const summaryDiv = document.getElementById(`summary-${id}`);
+  summaryDiv.style.display = 'block';
+  window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
+}
+
   </script>
 </body>
 </html>
