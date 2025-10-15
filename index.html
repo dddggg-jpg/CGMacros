@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CGM Data Viewer (Simple)</title>
+
+  <!-- Chart.js and PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    #chartContainer {
+      width: 100%;
+      max-width: 900px;
+      height: 400px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>CGMacros - Patient 001</h2>
+  <p>Displays Libre (15-min) and Dexcom (5-min) CGM glucose readings.</p>
+
+  <div id="chartContainer">
+    <canvas id="cgmChart"></canvas>
+  </div>
+
+  <script>
+    const csvFile = 'CGMacros-001.csv'; // must be in the same folder
+
+    // Parse CSV with PapaParse
+    Papa.parse(csvFile, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function(results) {
+        console.log("CSV loaded:", results);
+        const data = results.data;
+        plotCGM(data);
+      }
+    });
+
+    // Draw chart
+    function plotCGM(data) {
+      const timeCol = 'Timestamp';
+      const libreCol = 'Libre GL';
+      const dexCol = 'Dexcom GL';
+
+      const times = [];
+      const libreVals = [];
+      const dexVals = [];
+
+      data.forEach(row => {
+        if (row[timeCol]) {
+          times.push(row[timeCol]);
+          libreVals.push(row[libreCol] || null);
+          dexVals.push(row[dexCol] || null);
+        }
+      });
+
+      const ctx = document.getElementById('cgmChart').getContext('2d');
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: times,
+          datasets: [
+            {
+              label: 'Libre CGM',
+              data: libreVals,
+              borderColor: 'rgb(255, 99, 132)',
+              fill: false,
+              spanGaps: true,
+              pointRadius: 0
+            },
+            {
+              label: 'Dexcom CGM',
+              data: dexVals,
+              borderColor: 'rgb(54, 162, 235)',
+              fill: false,
+              spanGaps: true,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              title: { display: true, text: 'Time' },
+              ticks: { maxTicksLimit: 10 }
+            },
+            y: {
+              title: { display: true, text: 'Glucose (mg/dL)' }
+            }
+          },
+          plugins: {
+            title: { display: true, text: 'Libre vs. Dexcom CGM' },
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
