@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CGM Data Viewer (Zoomable)</title>
+  <title>CGMacros Viewer</title>
 
   <!-- Chart.js and Plugins -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -24,39 +24,134 @@
       padding: 5px 10px;
       cursor: pointer;
     }
+    #bioSummary {
+      margin-bottom: 20px;
+      background: #f7f7f7;
+      padding: 10px;
+      border-radius: 6px;
+      max-width: 900px;
+    }
   </style>
 </head>
 
 <body>
-  <h2>CGMacros - Patient 001</h2>
-  <p>Scroll to zoom, click+drag to pan, click "Reset Zoom" to reset view.</p>
+  <h2>CGMacros Viewer</h2>
 
+  <!-- Participant selector and control bar -->
+  <div style="margin-bottom: 10px;">
+    <label for="participantSelect"><strong>Participant:</strong></label>
+    <select id="participantSelect">
+      <option value="1">001</option>
+      <option value="2">002</option>
+      <option value="3">003</option>
+      <option value="4">004</option>
+      <option value="5">005</option>
+    </select>
+    <button id="resetZoomBtn">Reset Zoom</button>
+  </div>
+
+  <!-- Bio summary panel -->
+  <div id="bioSummary">
+    <strong>Participant 001:</strong> Loading demographics...
+  </div>
+
+  <!-- Chart container -->
   <div id="chartContainer">
     <canvas id="cgmChart"></canvas>
   </div>
 
-  <button id="resetZoomBtn">Reset Zoom</button>
+  <footer style="margin-top:40px; font-size:0.9em; max-width:900px; color:#333;">
+    <h3>Dataset Citation</h3>
+    <p>
+      Gutierrez-Osuna, R., Kerr, D., Mortazavi, B., & Das, A. (2025).
+      <em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring</em> (v1.0.0).
+      PhysioNet. RRID: SCR_007345.
+      <a href="https://doi.org/10.13026/3z8q-x658" target="_blank">https://doi.org/10.13026/3z8q-x658</a>
+    </p>
+    <p>
+      Anurag Das, David Kerr, Namino Glanz, Wendy Bevier, Rony Santiago, Ricardo Gutierrez-Osuna, and Bobak Mortazavi.
+      "<em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring.</em>"
+      <em>Scientific Data</em> (under review).
+    </p>
+    <p>
+      Goldberger A., Amaral L., Glass L., Hausdorff J., Ivanov P. C., Mark R., … & Stanley H. E. (2000).
+      <em>PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals.</em>
+      <em>Circulation</em> 101 (23): e215–e220. RRID: SCR_007345.
+    </p>
+    <p>
+      <strong>License:</strong> Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+    </p>
+  </footer>
 
   <script>
-    const csvFile = 'CGMacros-001.csv'; // Must be in same folder as HTML
+    const biosFile = 'bio.csv';  // bios data file
+    let biosData = {};
+    let chart;
 
-    let chart; // Global variable for later access (reset zoom etc.)
-
-    Papa.parse(csvFile, {
+    // Load bios file once, then initialize participant selector
+    Papa.parse(biosFile, {
       download: true,
       header: true,
       dynamicTyping: true,
       complete: function(results) {
-        const data = results.data;
-        plotCGM(data);
+        results.data.forEach(row => {
+          if (row.subject) biosData[row.subject] = row;
+        });
+        initChart();
       }
     });
+
+    function initChart() {
+      const select = document.getElementById('participantSelect');
+      loadParticipant(select.value);
+      select.addEventListener('change', e => loadParticipant(e.target.value));
+
+      document.getElementById('resetZoomBtn').addEventListener('click', () => {
+        if (chart) chart.resetZoom();
+      });
+    }
+
+    function loadParticipant(num) {
+      const file = `CGMacros-${String(num).padStart(3, '0')}.csv`;
+      const bio = biosData[num];
+      updateBioSummary(num, bio);
+
+      Papa.parse(file, {
+        download: true,
+        header: true,
+        dynamicTyping: true,
+        complete: function(results) {
+          const data = results.data;
+          plotCGM(data);
+        }
+      });
+    }
+
+    function updateBioSummary(num, bio) {
+      const div = document.getElementById('bioSummary');
+      if (!bio) {
+        div.innerHTML = `<strong>Participant ${num}:</strong> Bio not found.`;
+        return;
+      }
+      const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 Diabetes" :
+                       bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Healthy";
+
+      div.innerHTML = `
+        <strong>Participant ${String(num).padStart(3, '0')}:</strong>
+        ${bio.Gender}, ${bio.Age} yrs |
+        BMI ${bio.BMI.toFixed(1)} |
+        A1c ${bio["A1c PDL (Lab)"]}% (${category})<br>
+        Fasting Glucose: ${bio["Fasting GLU - PDL (Lab)"]} mg/dL |
+        Triglycerides: ${bio.Triglycerides} mg/dL |
+        HDL: ${bio.HDL} mg/dL |
+        LDL: ${bio["LDL (Cal)"]} mg/dL
+      `;
+    }
 
     function plotCGM(data) {
       const timeCol = 'Timestamp';
       const libreCol = 'Libre GL';
       const dexCol = 'Dexcom GL';
-
       const times = [];
       const libreVals = [];
       const dexVals = [];
@@ -69,8 +164,9 @@
         }
       });
 
-      const ctx = document.getElementById('cgmChart').getContext('2d');
+      if (chart) chart.destroy(); // Clear previous chart
 
+      const ctx = document.getElementById('cgmChart').getContext('2d');
       chart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -117,47 +213,12 @@
                 pinch: { enabled: true },
                 mode: 'x'
               },
-              pan: {
-                enabled: true,
-                mode: 'x'
-              },
-              limits: {
-                x: { min: 'original', max: 'original' },
-                y: { min: 'original', max: 'original' }
-              }
+              pan: { enabled: true, mode: 'x' }
             }
           }
         }
       });
-
-      // ====== Reset Zoom Button ======
-      document.getElementById('resetZoomBtn').addEventListener('click', () => {
-        chart.resetZoom();
-      });
     }
   </script>
-  <footer style="margin-top:40px; font-size:0.9em; max-width:900px; color:#333;">
-  <h3>Dataset Citation</h3>
-  <p>
-    Gutierrez-Osuna, R., Kerr, D., Mortazavi, B., & Das, A. (2025). 
-    <em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring</em> (v1.0.0). 
-    PhysioNet. RRID: SCR_007345. 
-    <a href="https://doi.org/10.13026/3z8q-x658" target="_blank">https://doi.org/10.13026/3z8q-x658</a>
-  </p>
-  <p>
-    Anurag Das, David Kerr, Namino Glanz, Wendy Bevier, Rony Santiago, Ricardo Gutierrez-Osuna, and Bobak Mortazavi. 
-    "<em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring.</em>" 
-    <em>Scientific Data</em> (under review).
-  </p>
-  <p>
-    Goldberger A., Amaral L., Glass L., Hausdorff J., Ivanov P. C., Mark R., … & Stanley H. E. (2000). 
-    <em>PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals.</em> 
-    <em>Circulation</em> 101 (23): e215–e220. RRID: SCR_007345.
-  </p>
-  <p>
-    <strong>License:</strong> Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
-  </p>
-  </footer>
 </body>
 </html>
-
