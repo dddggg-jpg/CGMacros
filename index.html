@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CGM Data Viewer (Simple)</title>
+  <title>CGM Data Viewer (Zoomable)</title>
 
-  <!-- Chart.js and PapaParse -->
+  <!-- Chart.js and Plugins -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 
   <style>
@@ -18,33 +19,39 @@
       max-width: 900px;
       height: 400px;
     }
+    button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
 <body>
   <h2>CGMacros - Patient 001</h2>
-  <p>Displays Libre (15-min) and Dexcom (5-min) CGM glucose readings.</p>
+  <p>Scroll to zoom, click+drag to pan, click "Reset Zoom" to reset view.</p>
 
   <div id="chartContainer">
     <canvas id="cgmChart"></canvas>
   </div>
 
-  <script>
-    const csvFile = 'CGMacros-001.csv'; // must be in the same folder
+  <button id="resetZoomBtn">Reset Zoom</button>
 
-    // Parse CSV with PapaParse
+  <script>
+    const csvFile = 'CGMacros-001.csv'; // Must be in same folder as HTML
+
+    let chart; // Global variable for later access (reset zoom etc.)
+
     Papa.parse(csvFile, {
       download: true,
       header: true,
       dynamicTyping: true,
       complete: function(results) {
-        console.log("CSV loaded:", results);
         const data = results.data;
         plotCGM(data);
       }
     });
 
-    // Draw chart
     function plotCGM(data) {
       const timeCol = 'Timestamp';
       const libreCol = 'Libre GL';
@@ -64,7 +71,7 @@
 
       const ctx = document.getElementById('cgmChart').getContext('2d');
 
-      new Chart(ctx, {
+      chart = new Chart(ctx, {
         type: 'line',
         data: {
           labels: times,
@@ -89,20 +96,43 @@
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           scales: {
             x: {
               title: { display: true, text: 'Time' },
               ticks: { maxTicksLimit: 10 }
             },
             y: {
-              title: { display: true, text: 'Glucose (mg/dL)' }
+              title: { display: true, text: 'Glucose (mg/dL)' },
+              suggestedMin: 60,
+              suggestedMax: 200
             }
           },
           plugins: {
             title: { display: true, text: 'Libre vs. Dexcom CGM' },
-            legend: { position: 'bottom' }
+            legend: { position: 'bottom' },
+            zoom: {
+              zoom: {
+                wheel: { enabled: true },
+                pinch: { enabled: true },
+                mode: 'x'
+              },
+              pan: {
+                enabled: true,
+                mode: 'x'
+              },
+              limits: {
+                x: { min: 'original', max: 'original' },
+                y: { min: 'original', max: 'original' }
+              }
+            }
           }
         }
+      });
+
+      // ====== Reset Zoom Button ======
+      document.getElementById('resetZoomBtn').addEventListener('click', () => {
+        chart.resetZoom();
       });
     }
   </script>
