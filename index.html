@@ -154,7 +154,7 @@
 
     function loadParticipant(num) {
       const file = `CGMacros-${num}.csv`;
-      const bio = biosData[num];
+      const bio = biosData[num] || biosData[parseInt(num)];
       updateBioSummary(num, bio);
 
       Papa.parse(file, {
@@ -263,4 +263,5 @@
   </script>
 </body>
 </html>
+
 
