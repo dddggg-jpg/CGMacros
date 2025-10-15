@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CGMacros – Participant Profiles</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; max-width: 1000px; margin-bottom: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f0f0f0; cursor: pointer; }
+    tr:hover { background-color: #fafafa; }
+    .summary {
+      background: #f7f7f7;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      max-width: 900px;
+      display: none;
+      text-align: left;
+    }
+    .category-Healthy { color: green; }
+    .category-Prediabetes { color: #c97b00; }
+    .category-Type2Diabetes { color: red; }
+    a.viewLink { color: #0366d6; text-decoration: none; }
+    a.viewLink:hover { text-decoration: underline; }
+  </style>
+</head>
+
+<body>
+  <h2>CGMacros – Participant Profiles</h2>
+  <p>Click a participant ID to read a brief chart-style summary, or open their continuous glucose monitor (CGM) data viewer.</p>
+
+  <table id="bioTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Age</th>
+        <th>Sex</th>
+        <th>BMI</th>
+        <th>A1c (%)</th>
+        <th>Group</th>
+        <th>View</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="summaryContainer"></div>
+
+  <script>
+    const biosFile = 'bio.csv';
+    let biosData = [];
+
+    // Load bios and build table
+    Papa.parse(biosFile, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function(results) {
+        biosData = results.data.filter(r => r.subject);
+        renderTable(biosData);
+      }
+    });
+
+    function renderTable(data) {
+      const tbody = document.querySelector("#bioTable tbody");
+      tbody.innerHTML = "";
+      data.forEach(bio => {
+        const a1c = bio["A1c PDL (Lab)"];
+        const category = a1c >= 6.5 ? "Type2Diabetes" :
+                         a1c >= 5.7 ? "Prediabetes" : "Healthy";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><a href="#" onclick="showSummary(${bio.subject});return false;">${String(bio.subject).padStart(3,'0')}</a></td>
+          <td>${bio.Age}</td>
+          <td>${bio.Gender}</td>
+          <td>${bio.BMI.toFixed(1)}</td>
+          <td>${a1c}</td>
+          <td class="category-${category}">${category.replace('Type2Diabetes','Type 2 Diabetes')}</td>
+          <td><a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3,'0')}">View CGM Data</a></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function showSummary(id) {
+      const bio = biosData.find(b => b.subject == id);
+      if (!bio) return;
+
+      const category = bio["A1c PDL (Lab)"] >= 6.5 ? "type 2 diabetes" :
+                       bio["A1c PDL (Lab)"] >= 5.7 ? "prediabetes" : "no diabetes";
+
+      const summary = `
+        <strong>Participant ${String(bio.subject).padStart(3,'0')}:</strong><br>
+        ${bio.Gender === 'M' ? 'Mr.' : 'Ms.'} is a ${bio.Age}-year-old ${bio["Self-identify"]} ${bio.Gender === 'M' ? 'male' : 'female'}
+        with an A1c of ${bio["A1c PDL (Lab)"]}% (${category}) and a body mass index of ${bio.BMI.toFixed(1)}.
+        As part of the screening process, laboratory evaluation revealed fasting glucose of ${bio["Fasting GLU - PDL (Lab)"]} mg/dL,
+        insulin level of ${bio.Insulin} µIU/mL, triglycerides of ${bio.Triglycerides} mg/dL,
+        total cholesterol of ${bio.Cholesterol} mg/dL, HDL ${bio.HDL} mg/dL, and LDL ${bio["LDL (Cal)"]} mg/dL.
+        <br><br><a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3,'0')}">View CGM Data for this participant</a>.
+      `;
+
+      const div = document.getElementById("summaryContainer");
+      div.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
+      const summaryDiv = document.getElementById(`summary-${id}`);
+      summaryDiv.style.display = 'block';
+      window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
