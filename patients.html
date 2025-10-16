@@ -108,6 +108,8 @@
   <script>
     const biosFile = 'bio.csv';
     let biosData = [];
+    const params = new URLSearchParams(window.location.search);
+    const initialPid = params.get('pid');
 
     Papa.parse(biosFile, {
       download: true,
@@ -116,6 +118,10 @@
       complete: function(results) {
         biosData = results.data.filter(row => row.subject);
         renderTable(biosData);
+        if (initialPid) {
+          const normalizedPid = String(initialPid).padStart(3, '0');
+          showSummary(normalizedPid);
+        }
       }
     });
 
@@ -128,6 +134,7 @@
         const categoryKey = a1c >= 6.5 ? 'Type2Diabetes' :
                             a1c >= 5.7 ? 'Prediabetes' :
                             'Nondiabetic';
+        const paddedSubject = String(bio.subject).padStart(3, '0');
         const categoryLabel =
           categoryKey === 'Type2Diabetes' ? 'Type 2 Diabetes' :
           categoryKey === 'Prediabetes' ? 'Prediabetes' :
@@ -135,15 +142,26 @@
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><a href="#" onclick="showSummary(${bio.subject}); return false;">${String(bio.subject).padStart(3, '0')}</a></td>
+          <td><a class="participantLink" href="?pid=${paddedSubject}" data-pid="${paddedSubject}">${paddedSubject}</a></td>
           <td>${bio.Age}</td>
           <td>${bio.Gender}</td>
           <td>${Number(bio.BMI).toFixed(1)}</td>
           <td>${a1c}</td>
           <td class="category-${categoryKey}">${categoryLabel}</td>
-          <td><a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3, '0')}">View CGM Data</a></td>
+          <td><a class="viewLink" href="index.html?pid=${paddedSubject}">View CGM Data</a></td>
         `;
         tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll('.participantLink').forEach(link => {
+        link.addEventListener('click', event => {
+          event.preventDefault();
+          const pid = event.currentTarget.getAttribute('data-pid');
+          showSummary(pid);
+          const url = new URL(window.location);
+          url.searchParams.set('pid', pid);
+          history.replaceState(null, '', url);
+        });
       });
     }
 
@@ -155,13 +173,17 @@
       const categoryKey = a1c >= 6.5 ? 'Type2Diabetes' :
                           a1c >= 5.7 ? 'Prediabetes' :
                           'Nondiabetic';
+      const paddedId = String(bio.subject).padStart(3, '0');
+      const url = new URL(window.location);
+      url.searchParams.set('pid', paddedId);
+      history.replaceState(null, '', url);
       const categoryLabel =
         categoryKey === 'Type2Diabetes' ? 'Type 2 diabetes' :
         categoryKey === 'Prediabetes' ? 'Prediabetes' :
         'Non-diabetic';
 
       const summary = `
-        <strong>Participant ${String(bio.subject).padStart(3, '0')}</strong> is a ${bio.Age} y.o. ${bio['Self-identify ']}
+        <strong>Participant ${paddedId}</strong> is a ${bio.Age} y.o. ${bio['Self-identify ']}
         ${bio.Gender === 'M' ? 'male' : 'female'} with an A1c of ${a1c}% (${categoryLabel}) and a BMI of ${Number(bio.BMI).toFixed(1)}.
         <br><br>
         <strong>Measurements</strong><br>
@@ -176,12 +198,12 @@
         Triglycerides: ${bio.Triglycerides} mg/dL<br>
         HDL: ${bio.HDL} mg/dL<br>
         LDL (Calculated): ${bio['LDL (Cal)']} mg/dL<br><br>
-        <a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3, '0')}">View CGM Data for this participant</a>.
+        <a class="viewLink" href="index.html?pid=${paddedId}">View CGM Data for this participant</a>.
       `;
 
       const container = document.getElementById('summaryContainer');
-      container.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
-      const summaryDiv = document.getElementById(`summary-${id}`);
+      container.innerHTML = `<div class="summary" id="summary-${paddedId}">${summary}</div>`;
+      const summaryDiv = document.getElementById(`summary-${paddedId}`);
       summaryDiv.style.display = 'block';
       window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
     }
