@@ -144,6 +144,17 @@
 
     function initChart() {
       const select = document.getElementById('participantSelect');
+      const params = new URLSearchParams(window.location.search);
+      let initialParticipant = params.get('pid');
+
+      if (initialParticipant) {
+        initialParticipant = String(initialParticipant).padStart(3, '0');
+        const optionExists = Array.from(select.options).some(option => option.value === initialParticipant);
+        if (optionExists) {
+          select.value = initialParticipant;
+        }
+      }
+
       loadParticipant(select.value);
       select.addEventListener('change', e => loadParticipant(e.target.value));
 
@@ -263,6 +274,7 @@
   </script>
 </body>
 </html>
+
 
 
 
