@@ -19,7 +19,7 @@
       display: none;
       text-align: left;
     }
-    .category-Healthy { color: green; }
+    .category-Nondiabetic { color: green; }
     .category-Prediabetes { color: #c97b00; }
     .category-Type2Diabetes { color: red; }
     a.viewLink { color: #0366d6; text-decoration: none; }
@@ -69,7 +69,7 @@
       data.forEach(bio => {
         const a1c = bio["A1c PDL (Lab)"];
         const category = a1c >= 6.5 ? "Type2Diabetes" :
-                         a1c >= 5.7 ? "Prediabetes" : "Healthy";
+                         a1c >= 5.7 ? "Prediabetes" : "Non-diabetic";
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -90,7 +90,7 @@
   if (!bio) return;
 
   const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 diabetes" :
-                   bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "No diabetes";
+                   bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Non-diabetic";
 
   const summary = `
     <strong>Participant ${String(bio.subject).padStart(3, '0')}</strong> is a ${bio.Age} y.o. ${bio["Self-identify "]} ${bio.Gender === 'M' ? 'male' : 'female'} 
