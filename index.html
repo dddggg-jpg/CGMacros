@@ -175,7 +175,7 @@
         return;
       }
       const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 Diabetes" :
-                       bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Healthy";
+                       bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Non-diabetic";
 
       div.innerHTML = `
         <strong>Participant ${String(num).padStart(3, '0')}:</strong>
@@ -263,6 +263,7 @@
   </script>
 </body>
 </html>
+
 
 
 
