@@ -181,15 +181,16 @@
 
     function updateBioSummary(num, bio) {
       const div = document.getElementById('bioSummary');
+      const paddedNum = String(num).padStart(3, '0');
       if (!bio) {
-        div.innerHTML = `<strong>Participant ${num}:</strong> Bio not found.`;
+        div.innerHTML = `<strong>Participant ${paddedNum}:</strong> Bio not found.`;
         return;
       }
       const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 Diabetes" :
                        bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Non-diabetic";
 
       div.innerHTML = `
-        <strong>Participant ${String(num).padStart(3, '0')}:</strong>
+        <strong><a href="patients.html?pid=${paddedNum}">Participant ${paddedNum}</a>:</strong>
         ${bio.Gender}, ${bio.Age} yrs |
         BMI ${bio.BMI.toFixed(1)} |
         A1c ${bio["A1c PDL (Lab)"]}% (${category})<br>
@@ -274,6 +275,7 @@
   </script>
 </body>
 </html>
+
 
 
 
