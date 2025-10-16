@@ -1,147 +1,145 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>CGMacros – Participant Profiles</title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <style>
-    body { font-family: sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; max-width: 1000px; margin-bottom: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background-color: #f0f0f0; cursor: pointer; }
-    tr:hover { background-color: #fafafa; }
-    .summary {
-      background: #f7f7f7;
-      padding: 10px;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      max-width: 900px;
-      display: none;
-      text-align: left;
-    }
-    .category-Nondiabetic { color: green; }
-    .category-Prediabetes { color: #c97b00; }
-    .category-Type2Diabetes { color: red; }
-    a.viewLink { color: #0366d6; text-decoration: none; }
-    a.viewLink:hover { text-decoration: underline; }
-  </style>
-</head>
-
-<body>
-  <h2>CGMacros – Participant Profiles</h2>
-  <p>Click a participant ID to read a brief chart-style summary, or open their continuous glucose monitor (CGM) data viewer.</p>
-
-  <table id="bioTable">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Age</th>
-        <th>Sex</th>
-        <th>BMI</th>
-        <th>A1c (%)</th>
-        <th>Group</th>
-        <th>View</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div id="summaryContainer"></div>
-
-  <script>
-    const biosFile = 'bio.csv';
-    let biosData = [];
-
-    // Load bios and build table
-    Papa.parse(biosFile, {
-      download: true,
-      header: true,
-      dynamicTyping: true,
-      complete: function(results) {
-        biosData = results.data.filter(r => r.subject);
-        renderTable(biosData);
-      }
-    });
-
-    function renderTable(data) {
-      const tbody = document.querySelector("#bioTable tbody");
-      tbody.innerHTML = "";
-      data.forEach(bio => {
-        const a1c = bio["A1c PDL (Lab)"];
-        const category = a1c >= 6.5 ? "Type2Diabetes" :
-                         a1c >= 5.7 ? "Prediabetes" : "Non-diabetic";
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><a href="#" onclick="showSummary(${bio.subject});return false;">${String(bio.subject).padStart(3,'0')}</a></td>
-          <td>${bio.Age}</td>
-          <td>${bio.Gender}</td>
-          <td>${bio.BMI.toFixed(1)}</td>
-          <td>${a1c}</td>
-          <td class="category-${category}">${category.replace('Type2Diabetes','Type 2 Diabetes')}</td>
-          <td><a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3,'0')}">View CGM Data</a></td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function showSummary(id) {
-  const bio = biosData.find(b => b.subject == id);
-  if (!bio) return;
-
-  const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 diabetes" :
-                   bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Non-diabetic";
-
-  const summary = `
-    <strong>Participant ${String(bio.subject).padStart(3, '0')}</strong> is a ${bio.Age} y.o. ${bio["Self-identify "]} ${bio.Gender === 'M' ? 'male' : 'female'} 
-    with an A1c of ${bio["A1c PDL (Lab)"]}% (${category}) and a BMI of ${bio.BMI.toFixed(1)}.
-    <br><br>
-    <strong>Measurements</strong><br>
-    Height: ${bio["Height "]} in<br>
-    Weight: ${bio["Body weight "]} lbs<br>
-    BMI: ${bio.BMI.toFixed(1)}<br><br>
-
-    <strong>Blood Analytics</strong><br>
-    HbA1c: ${bio["A1c PDL (Lab)"]}%<br>
-    Fasting Glucose: ${bio["Fasting GLU - PDL (Lab)"]} mg/dL<br>
-    Fasting Insulin: ${bio.["Insulin "} µIU/mL<br>
-    Cholesterol, Total: ${bio.Cholesterol} mg/dL<br>
-    Triglycerides: ${bio.Triglycerides} mg/dL<br>
-    HDL: ${bio.HDL} mg/dL<br>
-    LDL (Calculated): ${bio["LDL (Cal)"]} mg/dL
-    <br><br>
-    <a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3, '0')}">View CGM Data for this participant</a>.
-  `;
-
-  const div = document.getElementById("summaryContainer");
-  div.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
-  const summaryDiv = document.getElementById(`summary-${id}`);
-  summaryDiv.style.display = 'block';
-  window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
-}
-
-  </script>
-  <footer style="margin-top:40px; font-size:0.9em; max-width:900px; color:#333;">
-    <h3>Citation</h3>
-    <p>
-      Gutierrez-Osuna, R., Kerr, D., Mortazavi, B., & Das, A. (2025).
-      <em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring</em> (v1.0.0).
-      PhysioNet. RRID: SCR_007345.
-      <a href="https://doi.org/10.13026/3z8q-x658" target="_blank">https://doi.org/10.13026/3z8q-x658</a>
-    </p>
-    <p>
-      Anurag Das, David Kerr, Namino Glanz, Wendy Bevier, Rony Santiago, Ricardo Gutierrez-Osuna, and Bobak Mortazavi.
-      "<em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring.</em>"
-      <em>Scientific Data</em> (under review).
-    </p>
-    <p>
-      Goldberger A., Amaral L., Glass L., Hausdorff J., Ivanov P. C., Mark R., … & Stanley H. E. (2000).
-      <em>PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals.</em>
-      <em>Circulation</em> 101 (23): e215–e220. RRID: SCR_007345.
-    </p>
-    <p>
-      <strong>License:</strong> Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
-    </p>
-  </footer>
-</body>
-</html>
+diff --git a/patients.html b/patients.html
+index b4c232d7db641673078c0c52f6977c4c127f8abc..bd5de2fe12a0afcf4a940f8596e827daa546f943 100644
+--- a/patients.html
++++ b/patients.html
+@@ -46,101 +46,108 @@
+     <tbody></tbody>
+   </table>
+ 
+   <div id="summaryContainer"></div>
+ 
+   <script>
+     const biosFile = 'bio.csv';
+     let biosData = [];
+ 
+     // Load bios and build table
+     Papa.parse(biosFile, {
+       download: true,
+       header: true,
+       dynamicTyping: true,
+       complete: function(results) {
+         biosData = results.data.filter(r => r.subject);
+         renderTable(biosData);
+       }
+     });
+ 
+     function renderTable(data) {
+       const tbody = document.querySelector("#bioTable tbody");
+       tbody.innerHTML = "";
+       data.forEach(bio => {
+         const a1c = bio["A1c PDL (Lab)"];
+-        const category = a1c >= 6.5 ? "Type2Diabetes" :
+-                         a1c >= 5.7 ? "Prediabetes" : "Non-diabetic";
++        const categoryKey = a1c >= 6.5 ? "Type2Diabetes" :
++                             a1c >= 5.7 ? "Prediabetes" : "Nondiabetic";
++        const categoryLabel =
++          categoryKey === "Type2Diabetes" ? "Type 2 Diabetes" :
++          categoryKey === "Nondiabetic" ? "Non-diabetic" : "Prediabetes";
+ 
+         const tr = document.createElement("tr");
+         tr.innerHTML = `
+           <td><a href="#" onclick="showSummary(${bio.subject});return false;">${String(bio.subject).padStart(3,'0')}</a></td>
+           <td>${bio.Age}</td>
+           <td>${bio.Gender}</td>
+           <td>${bio.BMI.toFixed(1)}</td>
+           <td>${a1c}</td>
+-          <td class="category-${category}">${category.replace('Type2Diabetes','Type 2 Diabetes')}</td>
++          <td class="category-${categoryKey}">${categoryLabel}</td>
+           <td><a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3,'0')}">View CGM Data</a></td>
+         `;
+         tbody.appendChild(tr);
+       });
+     }
+ 
+     function showSummary(id) {
+-  const bio = biosData.find(b => b.subject == id);
+-  if (!bio) return;
++      const bio = biosData.find(b => b.subject == id);
++      if (!bio) return;
+ 
+-  const category = bio["A1c PDL (Lab)"] >= 6.5 ? "Type 2 diabetes" :
+-                   bio["A1c PDL (Lab)"] >= 5.7 ? "Prediabetes" : "Non-diabetic";
++      const a1c = bio["A1c PDL (Lab)"];
++      const categoryKey = a1c >= 6.5 ? "Type2Diabetes" :
++                           a1c >= 5.7 ? "Prediabetes" : "Nondiabetic";
++      const categoryLabel =
++        categoryKey === "Type2Diabetes" ? "Type 2 diabetes" :
++        categoryKey === "Nondiabetic" ? "Non-diabetic" : "Prediabetes";
+ 
+-  const summary = `
+-    <strong>Participant ${String(bio.subject).padStart(3, '0')}</strong> is a ${bio.Age} y.o. ${bio["Self-identify "]} ${bio.Gender === 'M' ? 'male' : 'female'} 
+-    with an A1c of ${bio["A1c PDL (Lab)"]}% (${category}) and a BMI of ${bio.BMI.toFixed(1)}.
+-    <br><br>
+-    <strong>Measurements</strong><br>
+-    Height: ${bio["Height "]} in<br>
+-    Weight: ${bio["Body weight "]} lbs<br>
+-    BMI: ${bio.BMI.toFixed(1)}<br><br>
++      const summary = `
++        <strong>Participant ${String(bio.subject).padStart(3, '0')}</strong> is a ${bio.Age} y.o. ${bio["Self-identify "]} ${bio.Gender === 'M' ? 'male' : 'female'}
++        with an A1c of ${a1c}% (${categoryLabel}) and a BMI of ${bio.BMI.toFixed(1)}.
++        <br><br>
++        <strong>Measurements</strong><br>
++        Height: ${bio["Height "]} in<br>
++        Weight: ${bio["Body weight "]} lbs<br>
++        BMI: ${bio.BMI.toFixed(1)}<br><br>
+ 
+-    <strong>Blood Analytics</strong><br>
+-    HbA1c: ${bio["A1c PDL (Lab)"]}%<br>
+-    Fasting Glucose: ${bio["Fasting GLU - PDL (Lab)"]} mg/dL<br>
+-    Fasting Insulin: ${bio.["Insulin "} µIU/mL<br>
+-    Cholesterol, Total: ${bio.Cholesterol} mg/dL<br>
+-    Triglycerides: ${bio.Triglycerides} mg/dL<br>
+-    HDL: ${bio.HDL} mg/dL<br>
+-    LDL (Calculated): ${bio["LDL (Cal)"]} mg/dL
+-    <br><br>
+-    <a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3, '0')}">View CGM Data for this participant</a>.
+-  `;
++        <strong>Blood Analytics</strong><br>
++        HbA1c: ${a1c}%<br>
++        Fasting Glucose: ${bio["Fasting GLU - PDL (Lab)"]} mg/dL<br>
++        Fasting Insulin: ${bio["Insulin "]} µIU/mL<br>
++        Cholesterol, Total: ${bio.Cholesterol} mg/dL<br>
++        Triglycerides: ${bio.Triglycerides} mg/dL<br>
++        HDL: ${bio.HDL} mg/dL<br>
++        LDL (Calculated): ${bio["LDL (Cal)"]} mg/dL
++        <br><br>
++        <a class="viewLink" href="index.html?pid=${String(bio.subject).padStart(3, '0')}">View CGM Data for this participant</a>.
++      `;
+ 
+-  const div = document.getElementById("summaryContainer");
+-  div.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
+-  const summaryDiv = document.getElementById(`summary-${id}`);
+-  summaryDiv.style.display = 'block';
+-  window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
+-}
++      const div = document.getElementById("summaryContainer");
++      div.innerHTML = `<div class="summary" id="summary-${id}">${summary}</div>`;
++      const summaryDiv = document.getElementById(`summary-${id}`);
++      summaryDiv.style.display = 'block';
++      window.scrollTo({ top: summaryDiv.offsetTop - 20, behavior: 'smooth' });
++    }
+ 
+   </script>
+   <footer style="margin-top:40px; font-size:0.9em; max-width:900px; color:#333;">
+     <h3>Citation</h3>
+     <p>
+       Gutierrez-Osuna, R., Kerr, D., Mortazavi, B., & Das, A. (2025).
+       <em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring</em> (v1.0.0).
+       PhysioNet. RRID: SCR_007345.
+       <a href="https://doi.org/10.13026/3z8q-x658" target="_blank">https://doi.org/10.13026/3z8q-x658</a>
+     </p>
+     <p>
+       Anurag Das, David Kerr, Namino Glanz, Wendy Bevier, Rony Santiago, Ricardo Gutierrez-Osuna, and Bobak Mortazavi.
+       "<em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring.</em>"
+       <em>Scientific Data</em> (under review).
+     </p>
+     <p>
+       Goldberger A., Amaral L., Glass L., Hausdorff J., Ivanov P. C., Mark R., … & Stanley H. E. (2000).
+       <em>PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals.</em>
+       <em>Circulation</em> 101 (23): e215–e220. RRID: SCR_007345.
+     </p>
+     <p>
+       <strong>License:</strong> Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+     </p>
+   </footer>
+ </body>
