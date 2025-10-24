@@ -6,6 +6,7 @@
 
   <!-- Chart.js and Plugins -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 
@@ -128,6 +129,7 @@
     const biosFile = 'bio.csv';  // bios data file
     let biosData = {};
     let chart;
+    let initialFocus = { timestamp: null, windowMs: null, applied: false };
 
     // Load bios file once, then initialize participant selector
     Papa.parse(biosFile, {
@@ -146,6 +148,22 @@
       const select = document.getElementById('participantSelect');
       const params = new URLSearchParams(window.location.search);
       let initialParticipant = params.get('pid');
+      const timestampParam = params.get('timestamp');
+      const windowParam = params.get('window');
+
+      if (timestampParam) {
+        const parsedTimestamp = new Date(timestampParam);
+        if (!isNaN(parsedTimestamp)) {
+          initialFocus.timestamp = parsedTimestamp;
+        }
+      }
+
+      if (windowParam) {
+        const windowMs = parseWindow(windowParam);
+        if (windowMs) {
+          initialFocus.windowMs = windowMs;
+        }
+      }
 
       if (initialParticipant) {
         initialParticipant = String(initialParticipant).padStart(3, '0');
@@ -174,10 +192,12 @@
         dynamicTyping: true,
         complete: function(results) {
           const data = results.data;
+          initialFocus.applied = false;
           plotCGM(data);
         }
       });
     }
+
 
     function updateBioSummary(num, bio) {
       const div = document.getElementById('bioSummary');
@@ -205,15 +225,18 @@
       const timeCol = 'Timestamp';
       const libreCol = 'Libre GL';
       const dexCol = 'Dexcom GL';
-      const times = [];
+      const timestamps = [];
       const libreVals = [];
       const dexVals = [];
 
       data.forEach(row => {
         if (row[timeCol]) {
-          times.push(row[timeCol]);
-          libreVals.push(row[libreCol] || null);
-          dexVals.push(row[dexCol] || null);
+          const ts = new Date(row[timeCol]);
+          if (!isNaN(ts)) {
+            timestamps.push(ts);
+            libreVals.push({ x: ts, y: row[libreCol] ?? null });
+            dexVals.push({ x: ts, y: row[dexCol] ?? null });
+          }
         }
       });
 
@@ -223,7 +246,6 @@
       chart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: times,
           datasets: [
             {
               label: 'Libre CGM',
@@ -231,7 +253,8 @@
               borderColor: 'rgb(255, 99, 132)',
               fill: false,
               spanGaps: true,
-              pointRadius: 0
+              pointRadius: 0,
+              parsing: false
             },
             {
               label: 'Dexcom CGM',
@@ -239,7 +262,8 @@
               borderColor: 'rgb(54, 162, 235)',
               fill: false,
               spanGaps: true,
-              pointRadius: 0
+              pointRadius: 0,
+              parsing: false
             }
           ]
         },
@@ -248,6 +272,7 @@
           maintainAspectRatio: false,
           scales: {
             x: {
+              type: 'time',
               title: { display: true, text: 'Time' },
               ticks: { maxTicksLimit: 10 }
             },
@@ -271,6 +296,64 @@
           }
         }
       });
+
+      maybeApplyInitialFocus(timestamps);
+    }
+
+    function parseWindow(windowStr) {
+      const match = /^\s*(\d+(?:\.\d+)?)([smhd])\s*$/i.exec(windowStr);
+      if (!match) return null;
+      const value = parseFloat(match[1]);
+      const unit = match[2].toLowerCase();
+      const multipliers = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+      return value * (multipliers[unit] || 0);
+    }
+
+    function maybeApplyInitialFocus(timestamps) {
+      if (!initialFocus.timestamp || initialFocus.applied || !chart || !timestamps.length) {
+        return;
+      }
+
+      const sortedTimes = [...timestamps].sort((a, b) => a - b);
+      const seriesStart = sortedTimes[0];
+      const seriesEnd = sortedTimes[sortedTimes.length - 1];
+      if (initialFocus.timestamp < seriesStart || initialFocus.timestamp > seriesEnd) {
+        return;
+      }
+
+      const windowMs = initialFocus.windowMs || 2 * 60 * 60 * 1000; // default to 2 hours
+      const halfWindow = windowMs / 2;
+
+      let minTime = new Date(initialFocus.timestamp.getTime() - halfWindow);
+      let maxTime = new Date(initialFocus.timestamp.getTime() + halfWindow);
+
+      if (minTime < seriesStart) {
+        minTime = seriesStart;
+        maxTime = new Date(minTime.getTime() + windowMs);
+      }
+
+      if (maxTime > seriesEnd) {
+        maxTime = seriesEnd;
+        minTime = new Date(maxTime.getTime() - windowMs);
+      }
+
+      minTime = new Date(Math.max(minTime.getTime(), seriesStart.getTime()));
+      maxTime = new Date(Math.min(maxTime.getTime(), seriesEnd.getTime()));
+
+      if (minTime >= maxTime) {
+        minTime = seriesStart;
+        maxTime = seriesEnd;
+      }
+
+      if (typeof chart.zoomScale === 'function') {
+        chart.zoomScale('x', { min: minTime, max: maxTime });
+      } else {
+        chart.options.scales.x.min = minTime;
+        chart.options.scales.x.max = maxTime;
+      }
+
+      chart.update('none');
+      initialFocus.applied = true;
     }
   </script>
 </body>
