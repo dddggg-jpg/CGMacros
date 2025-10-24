@@ -242,6 +242,18 @@
 
       const ctx = document.getElementById('cgmChart').getContext('2d');
       const extent = getTimeExtent(timestamps);
+
+      const xScaleOptions = {
+        type: 'time',
+        title: { display: true, text: 'Time' },
+        ticks: { maxTicksLimit: 10 }
+      };
+
+      if (extent) {
+        xScaleOptions.min = extent.start;
+        xScaleOptions.max = extent.end;
+      }
+
       chart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -270,17 +282,12 @@
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: {
-              type: 'time',
-              title: { display: true, text: 'Time' },
-              ticks: { maxTicksLimit: 10 }
-            },
+            x: xScaleOptions,
             y: {
               title: { display: true, text: 'Glucose (mg/dL)' },
               suggestedMin: 60,
               suggestedMax: 200
             }
-          },
           plugins: {
             title: { display: true, text: 'Libre vs. Dexcom CGM' },
             legend: { position: 'bottom' },
@@ -297,16 +304,10 @@
         }
       });
 
-      if (extent && chart.options?.scales?.x) {
-        chart.options.scales.x.min = new Date(extent.start);
-        chart.options.scales.x.max = new Date(extent.end);
-      }
-
       const applied = maybeApplyInitialFocus(extent);
       if (!applied && chart) {
         chart.update('none');
       }
-    }
 
     function parseWindow(windowStr) {
       const match = /^\s*(\d+(?:\.\d+)?)([smhd])\s*$/i.exec(windowStr);
@@ -417,6 +418,7 @@
   </script>
 </body>
 </html>
+
 
 
 
