@@ -152,8 +152,8 @@
       const windowParam = params.get('window');
 
       if (timestampParam) {
-        const parsedTimestamp = new Date(timestampParam);
-        if (!isNaN(parsedTimestamp)) {
+        const parsedTimestamp = parseTimestamp(timestampParam);
+        if (parsedTimestamp) {
           initialFocus.timestamp = parsedTimestamp;
         }
       }
@@ -230,19 +230,18 @@
       const dexVals = [];
 
       data.forEach(row => {
-        if (row[timeCol]) {
-          const ts = new Date(row[timeCol]);
-          if (!isNaN(ts)) {
-            timestamps.push(ts);
-            libreVals.push({ x: ts, y: row[libreCol] ?? null });
-            dexVals.push({ x: ts, y: row[dexCol] ?? null });
-          }
+        const ts = parseTimestamp(row[timeCol]);
+        if (ts) {
+          timestamps.push(ts);
+          libreVals.push({ x: ts, y: row[libreCol] ?? null });
+          dexVals.push({ x: ts, y: row[dexCol] ?? null });
         }
       });
 
       if (chart) chart.destroy(); // Clear previous chart
 
       const ctx = document.getElementById('cgmChart').getContext('2d');
+      const extent = getTimeExtent(timestamps);
       chart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -286,6 +285,7 @@
             title: { display: true, text: 'Libre vs. Dexcom CGM' },
             legend: { position: 'bottom' },
             zoom: {
+              limits: extent ? { x: { min: extent.start.getTime(), max: extent.end.getTime() } } : {},
               zoom: {
                 wheel: { enabled: true },
                 pinch: { enabled: true },
@@ -297,7 +297,15 @@
         }
       });
 
-      maybeApplyInitialFocus(timestamps);
+      if (extent && chart.options?.scales?.x) {
+        chart.options.scales.x.min = new Date(extent.start);
+        chart.options.scales.x.max = new Date(extent.end);
+      }
+
+      const applied = maybeApplyInitialFocus(extent);
+      if (!applied && chart) {
+        chart.update('none');
+      }
     }
 
     function parseWindow(windowStr) {
@@ -309,56 +317,106 @@
       return value * (multipliers[unit] || 0);
     }
 
-    function maybeApplyInitialFocus(timestamps) {
-      if (!initialFocus.timestamp || initialFocus.applied || !chart || !timestamps.length) {
-        return;
+    function maybeApplyInitialFocus(extent) {
+      if (!chart || !extent) {
+        return false;
       }
 
-      const sortedTimes = [...timestamps].sort((a, b) => a - b);
-      const seriesStart = sortedTimes[0];
-      const seriesEnd = sortedTimes[sortedTimes.length - 1];
-      if (initialFocus.timestamp < seriesStart || initialFocus.timestamp > seriesEnd) {
-        return;
+      if (!initialFocus.timestamp) {
+        initialFocus.applied = true;
+        return false;
       }
+
+      if (initialFocus.applied) {
+        return false;
+      }
+
+      const { start: seriesStart, end: seriesEnd } = extent;
+      const focusTime = clampDate(initialFocus.timestamp, seriesStart, seriesEnd);
 
       const windowMs = initialFocus.windowMs || 2 * 60 * 60 * 1000; // default to 2 hours
       const halfWindow = windowMs / 2;
 
-      let minTime = new Date(initialFocus.timestamp.getTime() - halfWindow);
-      let maxTime = new Date(initialFocus.timestamp.getTime() + halfWindow);
+      let minTime = new Date(focusTime.getTime() - halfWindow);
+      let maxTime = new Date(focusTime.getTime() + halfWindow);
 
       if (minTime < seriesStart) {
-        minTime = seriesStart;
-        maxTime = new Date(minTime.getTime() + windowMs);
+        minTime = new Date(seriesStart.getTime());
+        maxTime = new Date(Math.min(seriesStart.getTime() + windowMs, seriesEnd.getTime()));
       }
 
       if (maxTime > seriesEnd) {
-        maxTime = seriesEnd;
-        minTime = new Date(maxTime.getTime() - windowMs);
+        maxTime = new Date(seriesEnd.getTime());
+        minTime = new Date(Math.max(seriesEnd.getTime() - windowMs, seriesStart.getTime()));
       }
-
-      minTime = new Date(Math.max(minTime.getTime(), seriesStart.getTime()));
-      maxTime = new Date(Math.min(maxTime.getTime(), seriesEnd.getTime()));
 
       if (minTime >= maxTime) {
-        minTime = seriesStart;
-        maxTime = seriesEnd;
+        minTime = new Date(seriesStart.getTime());
+        maxTime = new Date(seriesEnd.getTime());
       }
 
-      if (typeof chart.zoomScale === 'function') {
-        chart.zoomScale('x', { min: minTime, max: maxTime });
-      } else {
+      if (chart.options?.scales?.x) {
         chart.options.scales.x.min = minTime;
         chart.options.scales.x.max = maxTime;
       }
 
       chart.update('none');
       initialFocus.applied = true;
+      return true;
+    }
+
+    function clampDate(value, min, max) {
+      const time = value.getTime();
+      if (time < min.getTime()) return new Date(min.getTime());
+      if (time > max.getTime()) return new Date(max.getTime());
+      return value;
+    }
+
+    function parseTimestamp(value) {
+      if (!value && value !== 0) return null;
+
+      if (value instanceof Date && !isNaN(value)) {
+        return value;
+      }
+
+      if (typeof value === 'number') {
+        const numericDate = new Date(value);
+        return isNaN(numericDate) ? null : numericDate;
+      }
+
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+
+        const normalized = trimmed.replace(' ', 'T');
+        let date = new Date(normalized);
+        if (!isNaN(date)) return date;
+
+        date = new Date(normalized + 'Z');
+        if (!isNaN(date)) return date;
+      }
+
+      const fallback = new Date(value);
+      return isNaN(fallback) ? null : fallback;
+    }
+
+    function getTimeExtent(timestamps) {
+      if (!timestamps.length) return null;
+
+      let min = timestamps[0];
+      let max = timestamps[0];
+
+      for (let i = 1; i < timestamps.length; i++) {
+        const ts = timestamps[i];
+        if (ts < min) min = ts;
+        if (ts > max) max = ts;
+      }
+
+      return { start: min, end: max };
     }
   </script>
 </body>
 </html>
-
 
 
 
