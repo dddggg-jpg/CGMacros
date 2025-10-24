@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CGMacros Meals</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      color: #333;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    p.description {
+      max-width: 900px;
+    }
+    #statusMessage {
+      margin-top: 15px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 1200px;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    thead {
+      background: #f2f2f2;
+    }
+    tr:nth-child(even) {
+      background: #fafafa;
+    }
+    a {
+      color: #0066cc;
+    }
+    th a {
+      color: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    th a:hover,
+    th a:focus {
+      text-decoration: underline;
+    }
+    th a.sort-asc::after {
+      content: '\25B2';
+      font-size: 0.75em;
+    }
+    th a.sort-desc::after {
+      content: '\25BC';
+      font-size: 0.75em;
+    }
+    .muted {
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>CGMacros Meals</h1>
+  <p class="description">
+    Explore meals recorded by participants in the CGMacros study. Each row aggregates a meal entry
+    from the participant's daily logs with macronutrient information and a quick link to view
+    three hours of post-prandial continuous glucose monitoring (CGM) data.
+  </p>
+
+  <div id="statusMessage">Loading meals across participants…</div>
+
+  <table id="mealsTable" style="display:none;">
+    <thead>
+      <tr>
+        <th><a href="#" data-sort="participant">Participant</a></th>
+        <th><a href="#" data-sort="a1c">A1c (%)</a></th>
+        <th><a href="#" data-sort="mealType">Meal Type</a></th>
+        <th><a href="#" data-sort="calories">Calories</a></th>
+        <th><a href="#" data-sort="carbs">Carbs (g)</a></th>
+        <th><a href="#" data-sort="protein">Protein (g)</a></th>
+        <th><a href="#" data-sort="fat">Fat (g)</a></th>
+        <th><a href="#" data-sort="fiber">Fiber (g)</a></th>
+        <th><a href="#" data-sort="amountConsumed">Amount Consumed (%)</a></th>
+        <th>CGM Window</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <footer style="margin-top:40px; font-size:0.9em; max-width:900px;">
+    <h3>Citation</h3>
+    <p>
+      Gutierrez-Osuna, R., Kerr, D., Mortazavi, B., &amp; Das, A. (2025).
+      <em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring</em> (v1.0.0).
+      PhysioNet. RRID: SCR_007345.
+      <a href="https://doi.org/10.13026/3z8q-x658" target="_blank">https://doi.org/10.13026/3z8q-x658</a>
+    </p>
+    <p>
+      Anurag Das, David Kerr, Namino Glanz, Wendy Bevier, Rony Santiago, Ricardo Gutierrez-Osuna, and Bobak Mortazavi.
+      "<em>CGMacros: a scientific dataset for personalized nutrition and diet monitoring.</em>"
+      <em>Scientific Data</em> (under review).
+    </p>
+    <p>
+      Goldberger A., Amaral L., Glass L., Hausdorff J., Ivanov P. C., Mark R., … &amp; Stanley H. E. (2000).
+      <em>PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals.</em>
+      <em>Circulation</em> 101 (23): e215–e220. RRID: SCR_007345.
+    </p>
+    <p>
+      <strong>License:</strong> Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+    </p>
+  </footer>
+
+  <script>
+    const biosFile = 'bio.csv';
+    const bioMap = new Map();
+    const table = document.getElementById('mealsTable');
+    const tbody = table.querySelector('tbody');
+    const statusMessage = document.getElementById('statusMessage');
+
+    const sortConfig = {
+      participant: { getter: row => Number(row.participant), type: 'number' },
+      a1c: { getter: row => row.a1c, type: 'number' },
+      mealType: { getter: row => row.mealType || '', type: 'string' },
+      calories: { getter: row => row.calories, type: 'number' },
+      carbs: { getter: row => row.carbs, type: 'number' },
+      protein: { getter: row => row.protein, type: 'number' },
+      fat: { getter: row => row.fat, type: 'number' },
+      fiber: { getter: row => row.fiber, type: 'number' },
+      amountConsumed: { getter: row => row.amountConsumed, type: 'number' }
+    };
+
+    const currentSort = {
+      column: 'participant',
+      direction: 'asc'
+    };
+
+    let mealRows = [];
+
+    Papa.parse(biosFile, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function(results) {
+        results.data.forEach(row => {
+          if (!row || !row.subject) return;
+          const participantId = String(row.subject).padStart(3, '0');
+          bioMap.set(participantId, row);
+        });
+
+        if (bioMap.size === 0) {
+          statusMessage.textContent = 'No participant demographics available.';
+          return;
+        }
+
+        loadMeals(Array.from(bioMap.keys()));
+      }
+    });
+
+    function loadMeals(participants) {
+      const promises = participants.map(pid => fetchMealsForParticipant(pid));
+
+      Promise.all(promises).then(results => {
+        mealRows = results.flat();
+        if (mealRows.length === 0) {
+          statusMessage.textContent = 'No meal records found across participants.';
+          return;
+        }
+
+        statusMessage.textContent = '';
+        table.style.display = '';
+        attachSortHandlers();
+        applySort('participant', false);
+      }).catch(() => {
+        statusMessage.textContent = 'Unable to load meal records at this time.';
+      });
+    }
+
+    function fetchMealsForParticipant(pid) {
+      return new Promise(resolve => {
+        Papa.parse(`CGMacros-${pid}.csv`, {
+          download: true,
+          header: true,
+          dynamicTyping: true,
+          transformHeader: header => header ? header.trim() : header,
+          complete: function(results) {
+            const data = Array.isArray(results.data) ? results.data : [];
+            const meals = [];
+            const a1c = getA1cForParticipant(pid);
+
+            data.forEach(row => {
+              if (!row) return;
+              const mealType = row['Meal Type'];
+              if (!mealType || String(mealType).trim() === '') return;
+
+              meals.push({
+                participant: pid,
+                a1c,
+                mealType: String(mealType).trim(),
+                calories: normalizeNumber(row['Calories']),
+                carbs: normalizeNumber(row['Carbs']),
+                protein: normalizeNumber(row['Protein']),
+                fat: normalizeNumber(row['Fat']),
+                fiber: normalizeNumber(row['Fiber']),
+                amountConsumed: normalizeNumber(row['Amount Consumed']),
+                timestamp: row['Timestamp'] || null
+              });
+            });
+
+            resolve(meals);
+          },
+          error: function() {
+            resolve([]);
+          }
+        });
+      });
+    }
+
+    function getA1cForParticipant(pid) {
+      const bio = bioMap.get(pid);
+      if (!bio) return null;
+      const value = bio['A1c PDL (Lab)'];
+      if (value === undefined || value === null || value === '') return null;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function normalizeNumber(value) {
+      if (value === undefined || value === null || value === '') return null;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function applySort(column, toggleDirection = true) {
+      if (!sortConfig[column] || mealRows.length === 0) return;
+
+      if (toggleDirection) {
+        if (currentSort.column === column) {
+          currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          currentSort.column = column;
+          currentSort.direction = 'asc';
+        }
+      } else {
+        currentSort.column = column;
+        currentSort.direction = 'asc';
+      }
+
+      const sorted = [...mealRows].sort((a, b) => compareRows(a, b, column));
+      renderTable(sorted);
+      updateSortIndicators();
+    }
+
+    function compareRows(a, b, column) {
+      const config = sortConfig[column];
+      const directionMultiplier = currentSort.direction === 'asc' ? 1 : -1;
+      const rawA = config.getter(a);
+      const rawB = config.getter(b);
+
+      if (config.type === 'number') {
+        const numA = Number(rawA);
+        const numB = Number(rawB);
+        const isNumA = Number.isFinite(numA);
+        const isNumB = Number.isFinite(numB);
+
+        if (!isNumA && !isNumB) return 0;
+        if (!isNumA) return 1 * directionMultiplier;
+        if (!isNumB) return -1 * directionMultiplier;
+        return (numA - numB) * directionMultiplier;
+      }
+
+      const strA = rawA == null ? '' : String(rawA);
+      const strB = rawB == null ? '' : String(rawB);
+      return strA.localeCompare(strB, undefined, { sensitivity: 'base' }) * directionMultiplier;
+    }
+
+    function attachSortHandlers() {
+      document.querySelectorAll('th a[data-sort]').forEach(link => {
+        link.addEventListener('click', event => {
+          event.preventDefault();
+          const column = event.currentTarget.getAttribute('data-sort');
+          applySort(column, true);
+        });
+      });
+    }
+
+    function updateSortIndicators() {
+      document.querySelectorAll('th a[data-sort]').forEach(link => {
+        const column = link.getAttribute('data-sort');
+        link.classList.remove('sort-asc', 'sort-desc');
+        if (column === currentSort.column) {
+          link.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+      });
+    }
+
+    function renderTable(data) {
+      tbody.innerHTML = '';
+
+      data.forEach(entry => {
+        const tr = document.createElement('tr');
+        const paddedParticipant = entry.participant;
+        tr.innerHTML = `
+          <td><a class="participantLink" href="patients.html?pid=${paddedParticipant}">${paddedParticipant}</a></td>
+          <td>${formatA1c(entry.a1c)}</td>
+          <td>${entry.mealType}</td>
+          <td>${formatNumber(entry.calories)}</td>
+          <td>${formatNumber(entry.carbs)}</td>
+          <td>${formatNumber(entry.protein)}</td>
+          <td>${formatNumber(entry.fat)}</td>
+          <td>${formatNumber(entry.fiber)}</td>
+          <td>${formatNumber(entry.amountConsumed)}</td>
+          <td>${renderCgmLink(entry)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function formatA1c(value) {
+      if (value === null || value === undefined || Number.isNaN(value)) return '—';
+      return Number(value).toFixed(1);
+    }
+
+    function formatNumber(value) {
+      if (value === null || value === undefined || Number.isNaN(value)) return '—';
+      const options = { maximumFractionDigits: 1, minimumFractionDigits: value % 1 === 0 ? 0 : 1 };
+      return Number(value).toLocaleString(undefined, options);
+    }
+
+    function renderCgmLink(entry) {
+      if (!entry.timestamp) {
+        return '<span class="muted">No timestamp</span>';
+      }
+      const isoTimestamp = String(entry.timestamp).replace(' ', 'T');
+      const url = `index.html?pid=${entry.participant}&timestamp=${encodeURIComponent(isoTimestamp)}&window=3h`;
+      return `<a class="viewLink" href="${url}">View 3&nbsp;hr CGM</a>`;
+    }
+  </script>
+</body>
+</html>
